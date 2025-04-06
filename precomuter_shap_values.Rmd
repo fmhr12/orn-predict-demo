@@ -1,0 +1,129 @@
+```{r}
+# ------------------------
+# 0. Load Required Packages
+# ------------------------
+library(dplyr)
+library(fastshap)
+library(readxl)
+library(FNN)
+library(riskRegression)
+library(prodlim)
+library(doParallel)
+
+# ------------------------
+# 1. Load Your Fine-Gray Model
+# ------------------------
+# Path to your saved Fine-Gray model. Adjust as needed.
+saved_model_path <- "/Users/farazparnia/Desktop/ArticleORNJ_Pred/Apps/App-V5_five-feature (insurance instead of node & pridodontal merged)/final_fg_model_update.rds"
+final_model <- readRDS(saved_model_path)
+
+# ------------------------
+# 2. Define a Prediction Wrapper for fastshap
+#    (You will call predictRisk for your Fine-Gray model.)
+# ------------------------
+pred_fun <- function(object, newdata, time_point = 60) {
+  as.vector(predictRisk(object, cause = 1, newdata = newdata, times = time_point))
+}
+
+
+# Example variable definitions 
+categorical_vars <- list(
+  Insurance_Type                = c("0", "1", "2"),
+  Periodontal_Grading_Merged = c("0", "1", "2"),
+  Disease_Site_Merged_2 = c("0", "1", "2")
+)
+
+# Suppose these are the typical ranges or distributions for your numeric features
+continuous_ranges <- list(
+  Smoking_Pack_per_Year = c(0, 200),
+  D10cc = c(0, 80.0)
+)
+
+# Function to generate one random sample
+generate_random_point <- function() {
+  # For each categorical variable, sample one level
+  cat_values <- lapply(categorical_vars, function(levels_vec) {
+    sample(levels_vec, size = 1)
+  })
+  
+  # For each continuous variable, sample a uniform random number in the range
+  cont_values <- lapply(continuous_ranges, function(rng) {
+    runif(1, min = rng[1], max = rng[2])
+  })
+
+  out_list <- c(cat_values, cont_values)
+  as.data.frame(out_list, stringsAsFactors = FALSE)
+}
+
+# Generate N random reference points
+set.seed(123)
+N <- 50000  # or 1,000 or more, based on your speed/accuracy trade-off
+df_grid <- bind_rows(replicate(N, generate_random_point(), simplify = FALSE))
+
+# Convert to factor/numeric as appropriate
+df_grid <- df_grid %>%
+  mutate(
+    Insurance_Type                = factor(Insurance_Type, levels = c("0", "1", "2")),
+    Periodontal_Grading_Merged = factor(Periodontal_Grading_Merged, 
+                                 levels = c("0", "1", "2")),
+    Disease_Site_Merged_2 = factor(Disease_Site_Merged_2, 
+                                   levels = c("0", "1", "2")),
+    
+    Smoking_Pack_per_Year   = as.numeric(Smoking_Pack_per_Year),
+    D10cc     = as.numeric(D10cc)
+  )
+
+# ------------------------------------------------------------
+# 4. Compute SHAP for multiple time points: 36, 60, 114
+#    We'll do three separate calls to fastshap::explain().
+# ------------------------------------------------------------
+time_points <- c(36, 60, 84, 114)
+
+# We'll store the results in a list and then merge them back.
+shap_list <- list()
+
+registerDoParallel(cores = 10)
+
+for (tpt in time_points) {
+  shap_values <- fastshap::explain(
+    object        = final_model,
+    feature_names = colnames(df_grid),
+    X            = df_grid,
+    pred_wrapper = function(object, newdata) {
+      pred_fun(object, newdata, time_point = tpt)
+    },
+    nsim          = 100,
+    adjust        = TRUE,
+    parallel      = TRUE 
+  )
+  
+  # shap_values is a data frame with the same columns as df_grid’s features.
+  # We'll rename each column to include the time point, e.g. Age -> Age_t36, ...
+  colnames(shap_values) <- paste0(colnames(shap_values), "_t", tpt)
+  
+  # Save to list
+  shap_list[[as.character(tpt)]] <- shap_values
+}
+
+# Combine everything into a single data frame.
+# The original df_grid columns remain, and we cbind the new shap columns.
+final_grid_data <- df_grid
+for (tpt in time_points) {
+  final_grid_data <- cbind(final_grid_data, shap_list[[as.character(tpt)]])
+}
+
+# final_grid_data now contains:
+#  - Original feature columns
+#  - SHAP columns for each feature at each time point, e.g. Age_t36, Age_t60, Age_t114, etc.
+
+# ------------------------------------------------------------
+# 5. Save the precomputed SHAP data
+# ------------------------------------------------------------
+saveRDS(final_grid_data, "precomputed_shap_grid_multi_times2.rds")
+
+
+```
+```{r}
+final_grid_data
+```
+
