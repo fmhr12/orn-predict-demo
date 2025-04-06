@@ -1,5 +1,3 @@
-```{r}
-
 library(shiny)
 library(shinythemes)
 library(survival)
@@ -8,7 +6,7 @@ library(fastshap)
 library(shapviz)
 library(ggplot2)
 library(prodlim)
-library(gower)        # For mixed-type distance calculation
+library(gower)       
 library(plotly)
 
 # -----------------------
@@ -22,22 +20,22 @@ compute_gower_distances <- function(single_row, df_full) {
 # -----------------------
 # 1. Load Final Model
 # -----------------------
-saved_model_path <- "/Users/farazparnia/Desktop/ArticleORNJ_Pred/Apps/App-V5_five-feature (insurance instead of node & pridodontal merged)/final_fg_model_update.rds"
+saved_model_path <- "final_fg_model_update.rds"
 final_model <- readRDS(saved_model_path)
 
 # -----------------------
 # 2. Load the PRECOMPUTED final_grid_data (SHAP values)
 # -----------------------
-precomputed_path <- "/Users/farazparnia/Desktop/ArticleORNJ_Pred/Apps/App-V5_five-feature (insurance instead of node & pridodontal merged)/precomputed_shap_grid_multi_times2.rds"
+precomputed_path <- "precomputed_shap_grid_multi_times2.rds"
 final_80grid_data <- readRDS(precomputed_path)
 
 # -----------------------
 # 3. Load the PRECOMPUTED average CIF data (for reference curves)
 # -----------------------
 # Overall, ORN Positive, and ORN Negative curves
-mean_cif_data_overall <- readRDS("/Users/farazparnia/Desktop/ArticleORNJ_Pred/Apps/App-V5_five-feature (insurance instead of node & pridodontal merged)/mean_cif_data_all.rds")
-mean_cif_data_pos     <- readRDS("/Users/farazparnia/Desktop/ArticleORNJ_Pred/Apps/App-V5_five-feature (insurance instead of node & pridodontal merged)/mean_cif_data_ORN_positive.rds")
-mean_cif_data_neg     <- readRDS("//Users/farazparnia/Desktop/ArticleORNJ_Pred/Apps/App-V5_five-feature (insurance instead of node & pridodontal merged)/mean_cif_data_ORN_negative.rds")
+mean_cif_data_overall <- readRDS("mean_cif_data_all.rds")
+mean_cif_data_pos     <- readRDS("mean_cif_data_ORN_positive.rds")
+mean_cif_data_neg     <- readRDS("mean_cif_data_ORN_negative.rds")
 
 # For SHAP baseline calculation we continue to use the overall data.
 mean_cif_data <- mean_cif_data_overall
@@ -280,15 +278,4 @@ server <- function(input, output, session) {
   })
 }
 
-if (interactive()) {
-  shinyApp(ui = ui, server = server)
-} else {
-  shiny::runApp(list(ui = ui, server = server), 
-                host = "0.0.0.0", 
-                port = as.numeric(Sys.getenv("PORT", 10000)))
-}
-
-
-```
-
-
+shinyApp(ui = ui, server = server)
